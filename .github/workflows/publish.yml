@@ -1,0 +1,49 @@
+# Tests à chaque envoi ; publication sur npm à chaque « Release » GitHub.
+# La publication passe par la « publication de confiance » npm (OIDC) :
+# aucun jeton npm n'est stocké dans le dépôt.
+name: Tests et publication
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      - run: npm test
+
+  publish:
+    if: github.event_name == 'release'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: Vérifier que la version correspond au tag
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          [ "$TAG" = "$PKG" ] || { echo "Tag $TAG ≠ package.json $PKG"; exit 1; }
+      - run: npm ci
+      - run: npm publish --provenance --access public
