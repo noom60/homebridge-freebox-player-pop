@@ -8,23 +8,25 @@ pour allumer et mettre en veille un **Freebox Player POP**.
 L'état affiché est celui que le Player annonce lui-même : si on l'éteint avec la
 vraie télécommande, HomeKit suit.
 
-Compatible Homebridge 1.6+ et 2.x, Node.js 18+.
+Compatible Homebridge 1.8+ et 2.x, Node.js 22, 24 et 26.
+
+> **English summary** — Homebridge plugin exposing a HomeKit switch that turns a
+> Freebox Player POP (the Android TV set-top box of French ISP Free) on and off,
+> and reflects its real state. It speaks the Android TV Remote v2 protocol
+> directly (the Freebox OS API cannot control the POP). Pairing is done from the
+> plugin settings screen: click **Pair**, type the code shown on the TV, save,
+> restart. No open ports, no analytics, Player identity pinned by certificate
+> fingerprint, files kept in the Homebridge storage directory.
 
 ## Installation
 
 1. Dans l'interface Homebridge, onglet **Plugins**, chercher
    **`homebridge-freebox-player-pop`** et l'installer.
-2. **Appairer le Player** une seule fois. Allumer le Player (image à l'écran),
-   puis ouvrir le **Terminal** de l'interface Homebridge (menu ⋮ → Terminal) :
-
-   ```sh
-   node /var/lib/homebridge/node_modules/homebridge-freebox-player-pop/bin/fbxpop-pair.js 192.168.1.XX
-   ```
-
-   (remplacer `192.168.1.XX` par l'IP du Player ; adapter `/var/lib/homebridge`
-   si le stockage Homebridge est ailleurs). Saisir le code à 6 caractères
-   affiché sur la TV.
-3. Dans les réglages du plugin, ajouter le Player (nom + IP), ou à la main :
+2. Ouvrir les **réglages du plugin**. Allumer le Player (image à l'écran), saisir
+   son adresse IP et cliquer sur **Appairer**, puis taper le code à 6 caractères
+   affiché sur la TV. Une faute de frappe se corrige sans tout recommencer.
+3. Dans la liste en dessous, ajouter le Player (nom + IP), puis **Enregistrer**.
+   En JSON, ça donne :
 
    ```json
    {
@@ -33,11 +35,14 @@ Compatible Homebridge 1.6+ et 2.x, Node.js 18+.
    }
    ```
 
-4. Redémarrer Homebridge. Le journal affiche `Connecté au Player`, puis
-   `Allumé` ou `En veille`.
+4. Redémarrer Homebridge. Le journal affiche `Identité du Player mémorisée`,
+   `Connecté au Player`, puis `Allumé` ou `En veille`.
 
 **Mise à jour** : bouton « Mettre à jour » de l'onglet Plugins. L'appairage est
 conservé.
+
+**Secours sans interface** : `node <dossier du plugin>/bin/fbxpop-pair.js <IP>`
+dans le terminal Homebridge fait le même appairage.
 
 ## Comment il parle au Player
 
@@ -99,7 +104,8 @@ correctement (longueurs varint, messages collés ou coupés).
 
 ```sh
 npm ci
-npm test          # 10 tests, dont un faux Player TLS local
+npm test          # 14 tests : faux Player TLS local (télécommande et appairage),
+                  # serveur de l'écran de réglages piloté comme par Homebridge
 ```
 
 Publier une version :
@@ -119,7 +125,10 @@ Rien n'est installable par les utilisateurs avant l'étape 3.
 - `lib/pairing.js` : appairage.
 - `lib/protocol.js` : protobuf, trames, certificat, secret d'appairage, journal.
 - `lib/store.js` : certificat par Player dans le stockage Homebridge.
-- `bin/fbxpop-pair.js` : appairage en ligne de commande.
+- `lib/pairing-session.js` : appairage pas à pas (écran de réglages).
+- `homebridge-ui/` : écran de réglages (bouton « Appairer »), via
+  `@homebridge/plugin-ui-utils`.
+- `bin/fbxpop-pair.js` : appairage en ligne de commande (secours).
 - `lib/proto/*.proto` : repris de [androidtv-remote](https://github.com/louis49/androidtv-remote) (louis49, ISC).
 
 ## Licence

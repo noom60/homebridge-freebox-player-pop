@@ -2,7 +2,8 @@
   "pluginAlias": "FreeboxPlayerPop",
   "pluginType": "platform",
   "singular": true,
-  "headerDisplay": "Allume et éteint un Freebox Player POP. Avant la première utilisation, appaire chaque Player depuis le terminal Homebridge : `fbxpop-pair <IP du Player>`, puis saisis le code affiché sur la TV.",
+  "customUi": true,
+  "headerDisplay": "Allume et éteint un Freebox Player POP depuis HomeKit. Appaire chaque Player avec le bouton « Appairer » ci-dessus, puis ajoute-le dans la liste. — Turns a Freebox Player POP on and off from HomeKit. Pair each Player with the « Pair » button above, then add it to the list.",
   "schema": {
     "type": "object",
     "properties": {
@@ -13,20 +14,20 @@
           "type": "object",
           "properties": {
             "name": {
-              "title": "Nom dans HomeKit",
+              "title": "Nom dans HomeKit / HomeKit name",
               "type": "string",
               "default": "Freebox Player",
               "required": true
             },
             "host": {
-              "title": "Adresse IP du Player",
+              "title": "Adresse IP du Player / Player IP address",
               "type": "string",
               "format": "ipv4",
               "placeholder": "192.168.1.37",
               "required": true
             },
             "debug": {
-              "title": "Journal détaillé",
+              "title": "Journal détaillé / Verbose log",
               "type": "boolean",
               "default": false
             }

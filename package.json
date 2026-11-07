@@ -1,8 +1,8 @@
 {
   "name": "homebridge-freebox-player-pop",
   "displayName": "Freebox Player POP",
-  "version": "0.1.2",
-  "description": "Allumer et éteindre un Freebox Player POP (Android TV) depuis HomeKit, via le protocole télécommande Android TV v2.",
+  "version": "0.2.0",
+  "description": "Turn a Freebox Player POP (Android TV) on and off from HomeKit — Allumer et éteindre un Freebox Player POP depuis HomeKit.",
   "main": "index.js",
   "bin": {
     "fbxpop-pair": "bin/fbxpop-pair.js"
@@ -14,15 +14,18 @@
     "index.js",
     "lib/",
     "bin/",
+    "homebridge-ui/",
     "config.schema.json",
     "README.md",
     "LICENSE"
   ],
   "keywords": [
     "homebridge-plugin",
+    "supports-hap",
     "freebox",
-    "android-tv",
-    "player-pop"
+    "freebox-player",
+    "player-pop",
+    "android-tv"
   ],
   "author": "Alexandre Clabault",
   "repository": {
@@ -35,14 +38,16 @@
   "homepage": "https://github.com/noom60/homebridge-freebox-player-pop#readme",
   "license": "ISC",
   "engines": {
-    "node": ">=18.0.0",
-    "homebridge": "^1.6.0 || ^2.0.0"
+    "node": "^22.12.0 || ^24.0.0 || ^26.0.0",
+    "homebridge": "^1.8.0 || ^2.0.0"
   },
   "dependencies": {
+    "@homebridge/plugin-ui-utils": "2.2.7",
     "node-forge": "1.4.3",
     "protobufjs": "7.6.6"
   },
   "bundleDependencies": [
+    "@homebridge/plugin-ui-utils",
     "node-forge",
     "protobufjs"
   ]

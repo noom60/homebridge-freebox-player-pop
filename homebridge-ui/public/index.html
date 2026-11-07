@@ -1,0 +1,154 @@
+<div class="card mb-3">
+  <div class="card-body">
+    <h5 class="card-title" data-t="title"></h5>
+    <p class="card-text small text-muted" data-t="intro"></p>
+
+    <div class="mb-2">
+      <label for="fbx-host" class="form-label" data-t="host"></label>
+      <div class="input-group">
+        <input id="fbx-host" type="text" class="form-control" placeholder="192.168.1.37" inputmode="decimal" autocomplete="off">
+        <button id="fbx-pair" type="button" class="btn btn-primary" data-t="pair"></button>
+      </div>
+      <div id="fbx-status" class="form-text"></div>
+    </div>
+
+    <div id="fbx-code-step" class="mt-3" style="display:none">
+      <label for="fbx-code" class="form-label" data-t="codeLabel"></label>
+      <div class="input-group">
+        <input id="fbx-code" type="text" class="form-control text-uppercase" maxlength="6" autocomplete="off" spellcheck="false" style="letter-spacing:.3em;font-family:monospace">
+        <button id="fbx-send" type="button" class="btn btn-success" data-t="send"></button>
+        <button id="fbx-cancel" type="button" class="btn btn-outline-secondary" data-t="cancel"></button>
+      </div>
+    </div>
+
+    <div id="fbx-result" class="alert mt-3 mb-0" role="status" style="display:none"></div>
+  </div>
+</div>
+
+<script>
+(async () => {
+  const TEXT = {
+    fr: {
+      title: 'Appairage du Player',
+      intro: "À faire une fois par Player. Le Player doit être allumé, avec l'image à l'écran.",
+      host: 'Adresse IP du Player',
+      pair: 'Appairer',
+      codeLabel: 'Code à 6 caractères affiché sur la TV',
+      send: 'Valider',
+      cancel: 'Annuler',
+      paired: 'Appairé ✓',
+      notPaired: 'Pas encore appairé',
+      connecting: 'Connexion au Player…',
+      codeShown: 'Le code est affiché sur la TV : saisis-le ci-dessous.',
+      wrongCode: 'Code incorrect, réessaie.',
+      success: "Appairé ✓ Ajoute le Player dans la liste ci-dessous si ce n'est pas fait, enregistre, puis redémarre Homebridge.",
+      cancelled: 'Appairage annulé.',
+      invalidIp: 'Adresse IP invalide.',
+    },
+    en: {
+      title: 'Player pairing',
+      intro: 'Do this once per Player. The Player must be on, with a picture on screen.',
+      host: 'Player IP address',
+      pair: 'Pair',
+      codeLabel: '6-character code shown on the TV',
+      send: 'Submit',
+      cancel: 'Cancel',
+      paired: 'Paired ✓',
+      notPaired: 'Not paired yet',
+      connecting: 'Connecting to the Player…',
+      codeShown: 'The code is shown on the TV: type it below.',
+      wrongCode: 'Wrong code, try again.',
+      success: 'Paired ✓ Add the Player to the list below if needed, save, then restart Homebridge.',
+      cancelled: 'Pairing cancelled.',
+      invalidIp: 'Invalid IP address.',
+    },
+  };
+  let lang = 'en';
+  try { lang = String(await homebridge.i18nCurrentLang()).toLowerCase().startsWith('fr') ? 'fr' : 'en'; } catch (e) {}
+  const t = (k) => TEXT[lang][k];
+  document.querySelectorAll('[data-t]').forEach((el) => { el.textContent = t(el.dataset.t); });
+
+  const $ = (id) => document.getElementById(id);
+  const hostInput = $('fbx-host'), codeInput = $('fbx-code');
+  const IPV4 = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
+
+  const showResult = (kind, msg) => {
+    const box = $('fbx-result');
+    box.className = `alert alert-${kind} mt-3 mb-0`;
+    box.textContent = msg;                       // textContent : jamais d'HTML injecté
+    box.style.display = msg ? '' : 'none';
+  };
+  const showCodeStep = (on) => {
+    $('fbx-code-step').style.display = on ? '' : 'none';
+    $('fbx-pair').disabled = on;
+    hostInput.disabled = on;
+    if (on) { codeInput.value = ''; codeInput.focus(); }
+  };
+  const errorText = (e) => (e && (e.message || (e.error && e.error.message))) || String(e);
+
+  async function refreshStatus() {
+    const host = hostInput.value.trim();
+    if (!IPV4.test(host)) { $('fbx-status').textContent = ''; return; }
+    try {
+      const s = await homebridge.request('/status', { host });
+      $('fbx-status').textContent = s.paired ? t('paired') : t('notPaired');
+    } catch (e) { $('fbx-status').textContent = ''; }
+  }
+
+  // IP pré-remplie depuis la configuration (1er Player), suivie pendant l'édition.
+  const firstHost = (cfg) => {
+    const block = (cfg || []).find((c) => c && c.platform === 'FreeboxPlayerPop');
+    const p = block && Array.isArray(block.players) ? block.players.find((x) => x && x.host) : null;
+    return p ? p.host : '';
+  };
+  try { hostInput.value = firstHost(await homebridge.getPluginConfig()); } catch (e) {}
+  homebridge.addEventListener('configChanged', (ev) => {
+    if (!hostInput.value && !hostInput.disabled) { hostInput.value = firstHost(ev.data); refreshStatus(); }
+  });
+  hostInput.addEventListener('change', refreshStatus);
+  refreshStatus();
+
+  $('fbx-pair').addEventListener('click', async () => {
+    const host = hostInput.value.trim();
+    if (!IPV4.test(host)) { showResult('warning', t('invalidIp')); return; }
+    showResult('info', t('connecting'));
+    homebridge.showSpinner();
+    try {
+      await homebridge.request('/pair/start', { host });
+      showResult('info', t('codeShown'));
+      showCodeStep(true);
+    } catch (e) {
+      showResult('danger', errorText(e));
+    } finally { homebridge.hideSpinner(); }
+  });
+
+  async function sendCode() {
+    homebridge.showSpinner();
+    try {
+      const r = await homebridge.request('/pair/code', { code: codeInput.value.trim().toUpperCase() });
+      if (r.status === 'code') {
+        showResult('warning', t('wrongCode'));
+        codeInput.select();
+      } else {
+        showCodeStep(false);
+        showResult('success', t('success'));
+        homebridge.toast.success(t('paired'));
+        refreshStatus();
+      }
+    } catch (e) {
+      showCodeStep(false);
+      showResult('danger', errorText(e));
+    } finally { homebridge.hideSpinner(); }
+  }
+  $('fbx-send').addEventListener('click', sendCode);
+  codeInput.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') sendCode(); });
+
+  $('fbx-cancel').addEventListener('click', async () => {
+    try { await homebridge.request('/pair/cancel'); } catch (e) {}
+    showCodeStep(false);
+    showResult('secondary', t('cancelled'));
+  });
+
+  homebridge.showSchemaForm();
+})();
+</script>

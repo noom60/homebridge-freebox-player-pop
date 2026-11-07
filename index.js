@@ -2,7 +2,6 @@
 // Plugin Homebridge : un interrupteur HomeKit par Freebox Player POP.
 // L'état affiché est celui que le Player annonce lui-même (allumé / veille).
 
-const path = require('node:path');
 const { AndroidTvRemote } = require('./lib/remote');
 const store = require('./lib/store');
 const { version } = require('./package.json');
@@ -33,30 +32,43 @@ class FreeboxPlayerPopPlatform {
   setup() {
     const list = Array.isArray(this.config.players) ? this.config.players : [];
     const wanted = new Set();
-
-    for (const conf of list) {
-      if (!conf || !conf.host) { this.log.warn('Player ignoré : adresse IP manquante'); continue; }
-      const name = conf.name || 'Freebox Player';
-      const uuid = this.api.hap.uuid.generate(`${PLUGIN_NAME}:${conf.host}`);
-      wanted.add(uuid);
-
-      const certs = store.loadCerts(this.api.user.storagePath(), conf.host);
-      if (!certs || !certs.paired) {
-        this.log.error(`[${name}] Pas encore appairé. Dans le terminal Homebridge, lance : ` +
-          `node ${path.join(__dirname, 'bin', 'fbxpop-pair.js')} ${conf.host}`);
-        continue;
-      }
-
-      let accessory = this.cached.get(uuid);
-      if (!accessory) {
-        accessory = new this.api.platformAccessory(name, uuid);
-        this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
-      }
-      this.players.push(new PlayerSwitch(this, accessory, conf, name, certs));
+    if (!list.length) {
+      // Non configuré : on ne démarre rien.
+      this.log.info('Aucun Player configuré. Ouvre les réglages du plugin pour appairer et ajouter un Player.');
     }
 
-    const stale = [...this.cached.values()].filter((a) => !wanted.has(a.UUID));
-    if (stale.length) this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, stale);
+    for (const conf of list) {
+      // Une erreur sur un Player ne doit ni bloquer les autres ni faire tomber Homebridge.
+      try {
+        if (!conf || !conf.host) { this.log.warn('Player ignoré : adresse IP manquante'); continue; }
+        const name = conf.name || 'Freebox Player';
+        const uuid = this.api.hap.uuid.generate(`${PLUGIN_NAME}:${conf.host}`);
+        wanted.add(uuid);
+
+        const certs = store.loadCerts(this.api.user.storagePath(), conf.host);
+        if (!certs || !certs.paired) {
+          this.log.error(`[${name}] Pas encore appairé : ouvre les réglages du plugin et clique sur « Appairer », ` +
+            'puis redémarre Homebridge.');
+          continue;
+        }
+
+        let accessory = this.cached.get(uuid);
+        if (!accessory) {
+          accessory = new this.api.platformAccessory(name, uuid);
+          this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+        }
+        this.players.push(new PlayerSwitch(this, accessory, conf, name, certs));
+      } catch (e) {
+        this.log.error(`Player ${conf && conf.host} : ${e.message}`);
+      }
+    }
+
+    try {
+      const stale = [...this.cached.values()].filter((a) => !wanted.has(a.UUID));
+      if (stale.length) this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, stale);
+    } catch (e) {
+      this.log.error(`Nettoyage des accessoires : ${e.message}`);
+    }
   }
 }
 
@@ -80,7 +92,7 @@ class PlayerSwitch {
       .onGet(() => this.currentTarget())
       .onSet((value) => this.setPower(!!value));
 
-    const pairCmd = `node ${path.join(__dirname, 'bin', 'fbxpop-pair.js')} ${conf.host}`;
+    const pairCmd = "réglages du plugin → « Appairer »";
     const storagePath = platform.api.user.storagePath();
     let alerted = false;   // une alerte d'identité par épisode, pas une par tentative
 
@@ -90,8 +102,13 @@ class PlayerSwitch {
     this.remote.on('disconnected', () => this.log.warn(`[${name}] Connexion au Player perdue, reconnexion automatique`));
     this.remote.on('unpaired', () => this.log.error(`[${name}] Le Player refuse le certificat. Relance l'appairage : ${pairCmd}`));
     this.remote.on('fingerprint', (fp) => {
-      store.saveCerts(storagePath, conf.host, { ...certs, serverFingerprint: fp });
-      this.log.info(`[${name}] Identité du Player mémorisée (${fp.slice(0, 23)}…)`);
+      try {
+        store.saveCerts(storagePath, conf.host, { ...certs, serverFingerprint: fp });
+        this.log.info(`[${name}] Identité du Player mémorisée (${fp.slice(0, 23)}…)`);
+      } catch (e) {
+        // Retenue en mémoire quand même ; on réessaiera au prochain démarrage.
+        this.log.warn(`[${name}] Identité du Player non enregistrée sur le disque : ${e.message}`);
+      }
     });
     this.remote.on('untrusted', (fp) => {
       if (alerted) return;
@@ -128,7 +145,12 @@ class PlayerSwitch {
     }
     if (this.currentTarget() === on) return;   // l'état a pu arriver avec la reconnexion
     this.log.info(`[${this.name}] ${on ? 'Allumage' : 'Mise en veille'} demandé(e)`);
-    this.remote.sendKey('KEYCODE_POWER');
+    try {
+      this.remote.sendKey('KEYCODE_POWER');
+    } catch (e) {
+      this.log.warn(`[${this.name}] Commande non envoyée : ${e.message}`);
+      throw new HapStatusError(HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+    }
     this.pending = { on, until: Date.now() + 15000 };
   }
 }

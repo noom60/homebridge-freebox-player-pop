@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 'use strict';
-// Appairage en ligne de commande, à lancer une fois depuis le terminal de
-// Homebridge :   fbxpop-pair 192.168.1.37
+// Appairage en ligne de commande — solution de secours : l'appairage se fait
+// normalement depuis l'écran de réglages du plugin dans Homebridge.
+//   node bin/fbxpop-pair.js 192.168.1.37
 // Options :      --storage <dossier>   (défaut : dossier de stockage Homebridge)
 
 const fs = require('node:fs');
@@ -34,7 +35,10 @@ async function main() {
     const { fingerprint } = await pair({
       host, certs,
       log: (m) => console.log(m),
-      askCode: () => rl.question('Code affiché sur la TV : '),
+      askCode: (lastError) => {
+        if (lastError) console.log(`⚠ ${lastError}, réessaie.`);
+        return rl.question('Code affiché sur la TV : ');
+      },
     });
     const file = store.saveCerts(storage, host, { ...certs, paired: true, serverFingerprint: fingerprint });
     console.log(`Identité du Player mémorisée : ${fingerprint}`);
