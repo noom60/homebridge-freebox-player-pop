@@ -80,7 +80,8 @@ correctement (longueurs varint, messages collés ou coupés).
 - **Journal** : jamais le texte saisi sur la TV (recherches, identifiants).
 - **Dépendances figées et embarquées** dans le paquet (`bundleDependencies`).
   Le paquet npm est publié par GitHub Actions avec
-  [provenance](https://docs.npmjs.com/generating-provenance-statements).
+  [provenance](https://docs.npmjs.com/generating-provenance-statements), et
+  chaque version doit être approuvée par le mainteneur (2FA) avant d'être en ligne.
 - Le certificat client est rangé dans
   `<stockage Homebridge>/freebox-player-pop/<IP>.json` (droits 600). Il permet de
   piloter le Player comme une télécommande : ne pas partager les sauvegardes
@@ -101,8 +102,15 @@ npm ci
 npm test          # 10 tests, dont un faux Player TLS local
 ```
 
-Publier une version : mettre à jour `version` dans `package.json`, pousser, puis
-créer une Release GitHub `vX.Y.Z` — le workflow teste et publie sur npm.
+Publier une version :
+
+1. mettre à jour `version` dans `package.json`, pousser ;
+2. créer une Release GitHub `vX.Y.Z` : le workflow teste, puis met la version
+   **en attente** sur npm (`npm stage publish`, avec provenance) ;
+3. l'approuver avec la 2FA du mainteneur, sur npmjs.com ou par
+   `npm stage list` puis `npm stage approve <id>`.
+
+Rien n'est installable par les utilisateurs avant l'étape 3.
 
 ## Fichiers
 

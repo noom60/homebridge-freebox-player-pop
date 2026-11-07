@@ -1,6 +1,7 @@
-# Tests à chaque envoi ; publication sur npm à chaque « Release » GitHub.
-# La publication passe par la « publication de confiance » npm (OIDC) :
-# aucun jeton npm n'est stocké dans le dépôt.
+# Tests à chaque envoi ; à chaque « Release » GitHub, la version est mise en
+# attente sur npm (stage publish) par la « publication de confiance » (OIDC) :
+# aucun jeton npm n'est stocké dans le dépôt, et rien n'est en ligne tant que
+# le mainteneur n'a pas approuvé avec sa 2FA.
 name: Tests et publication
 
 on:
@@ -45,5 +46,9 @@ jobs:
           TAG="${GITHUB_REF_NAME#v}"
           PKG="$(node -p "require('./package.json').version")"
           [ "$TAG" = "$PKG" ] || { echo "Tag $TAG ≠ package.json $PKG"; exit 1; }
+      # « npm stage » n'existe que dans les npm récents : version figée.
+      - run: npm install -g npm@11.17.0
       - run: npm ci
-      - run: npm publish --provenance --access public
+      # Le Trusted Publisher n'a que le droit « stage publish » : la version
+      # attend l'approbation du mainteneur (2FA) sur npmjs.com avant d'être en ligne.
+      - run: npm stage publish --provenance --access public

@@ -1,7 +1,7 @@
 {
   "name": "homebridge-freebox-player-pop",
   "displayName": "Freebox Player POP",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Allumer et éteindre un Freebox Player POP (Android TV) depuis HomeKit, via le protocole télécommande Android TV v2.",
   "main": "index.js",
   "bin": {
