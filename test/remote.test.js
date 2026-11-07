@@ -88,6 +88,59 @@ test('longueur annoncée énorme : refus immédiat', async () => {
   r.stop(); server.close();
 });
 
+test('appli au premier plan annoncée, ouverture d\'appli envoyée au Player', async () => {
+  const got = [];
+  let playerSocket;
+  const { server, port } = await fakePlayer(playerCert, (s) => {
+    playerSocket = s;
+    const reader = new P.FrameReader();
+    s.on('data', (d) => { for (const f of reader.push(d)) got.push(P.RemoteMessage.decode(f)); });
+    s.write(Buffer.concat([hello, P.encode(P.RemoteMessage, {
+      remoteImeKeyInject: { appInfo: { appPackage: 'net.oqee.androidtv' } },
+    })]));
+  });
+  const r = new AndroidTvRemote({ host: '127.0.0.1', port, certs: clientCert, fingerprint: fp(playerCert.cert) });
+  const app = once(r, 'app');
+  r.start();
+  assert.strictEqual(await app, 'net.oqee.androidtv');
+  r.launchApp('com.netflix.ninja');
+  r.launchApp('https://www.youtube.com/watch?v=abc');
+  r.launchApp('key:KEYCODE_HOME');
+  assert.throws(() => r.launchApp('rm -rf /'), /Appli invalide/);
+  assert.throws(() => r.launchApp('key:KEYCODE_NIMPORTEQUOI'), /Touche inconnue/);
+  // Refus du Player : il renvoie la commande refusée.
+  const rejected = once(r, 'rejected');
+  playerSocket.write(P.encode(P.RemoteMessage, { remoteError: { value: true, message: { remoteAppLinkLaunchRequest: { appLink: 'market://x' } } } }));
+  assert.strictEqual(await rejected, 'ouverture de market://x');
+  await new Promise((res) => setTimeout(res, 200));
+  const links = got.filter((m) => m.remoteAppLinkLaunchRequest).map((m) => m.remoteAppLinkLaunchRequest.appLink);
+  assert.deepStrictEqual(links, ['market://launch?id=com.netflix.ninja', 'https://www.youtube.com/watch?v=abc']);
+  assert.strictEqual(got.filter((m) => m.remoteKeyInject && m.remoteKeyInject.keyCode === P.KeyCode.KEYCODE_HOME).length, 1);
+  r.stop(); server.close();
+});
+
+test('sources : liste par défaut, validation et plafond', () => {
+  const { sanitizeApps, DEFAULT_APPS } = require('../index');
+  const log = { warn: () => {} };
+  assert.strictEqual(sanitizeApps(undefined, log, 'x'), DEFAULT_APPS);
+  assert.strictEqual(sanitizeApps([], log, 'x'), DEFAULT_APPS);
+  assert.deepStrictEqual(sanitizeApps([
+    { name: ' Canal+ ', link: 'https://www.canalplus.com', package: 'com.canal.android.canal' },
+    { name: 'Sans lien', package: 'com.exemple.tv' },
+    { name: 'Accueil', link: 'key:KEYCODE_HOME', package: 'net.oqee.androidtv, net.oqee.launcher' },
+    { name: '', link: 'https://vide.example' },
+    { name: 'Piège', link: 'https://x.example', package: 'com.x; rm -rf /' },
+    { name: 'Schéma refusé', link: 'javascript:alert(1)' },
+    null,
+  ], log, 'x'), [
+    { name: 'Canal+', link: 'https://www.canalplus.com', packages: ['com.canal.android.canal'] },
+    { name: 'Sans lien', link: 'com.exemple.tv', packages: ['com.exemple.tv'] },
+    { name: 'Accueil', link: 'key:KEYCODE_HOME', packages: ['net.oqee.androidtv', 'net.oqee.launcher'] },
+  ]);
+  const many = Array.from({ length: 50 }, (_, i) => ({ name: `A${i}`, link: `https://a${i}.example` }));
+  assert.strictEqual(sanitizeApps(many, log, 'x').length, 30);
+});
+
 test('journal : le texte saisi sur la TV n\'apparaît jamais', () => {
   const msg = P.RemoteMessage.decode(P.encode(P.RemoteMessage, {
     remoteImeKeyInject: { appInfo: { appPackage: 'com.netflix' }, textFieldStatus: { value: 'MotDePasse123', label: 'password' } },

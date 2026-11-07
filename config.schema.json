@@ -3,7 +3,8 @@
   "pluginType": "platform",
   "singular": true,
   "customUi": true,
-  "headerDisplay": "Allume et éteint un Freebox Player POP depuis HomeKit. Appaire chaque Player avec le bouton « Appairer » ci-dessus, puis ajoute-le dans la liste. — Turns a Freebox Player POP on and off from HomeKit. Pair each Player with the « Pair » button above, then add it to the list.",
+  "headerDisplay": "Pilote un Freebox Player POP depuis HomeKit. Appaire chaque Player avec le bouton « Appairer » ci-dessus, puis ajoute-le dans la liste. — Controls a Freebox Player POP from HomeKit. Pair each Player with the « Pair » button above, then add it to the list.",
+  "footerDisplay": "Mode Téléviseur : après le redémarrage, ajoute le Player dans l'app Maison (+ → Ajouter un accessoire → Autres options) avec le code de Homebridge. — Television mode: after restarting, add the Player in the Home app with the Homebridge setup code.",
   "schema": {
     "type": "object",
     "properties": {
@@ -26,6 +27,40 @@
               "placeholder": "192.168.1.37",
               "required": true
             },
+            "accessoryType": {
+              "title": "Type d'accessoire / Accessory type",
+              "type": "string",
+              "default": "television",
+              "oneOf": [
+                { "title": "Téléviseur : allumage, télécommande, volume, sources / Television", "enum": ["television"] },
+                { "title": "Interrupteur allumé / veille / Switch", "enum": ["switch"] }
+              ],
+              "description": "Changer de type crée un nouvel accessoire dans l'app Maison (automatisations à refaire). / Changing type creates a new Home app accessory."
+            },
+            "apps": {
+              "title": "Sources (applis) / Inputs (apps)",
+              "description": "Mode Téléviseur. Laisser vide pour la liste par défaut : Oqee, Netflix, YouTube, Prime Video, Disney+. / Leave empty for the default list.",
+              "type": "array",
+              "maxItems": 30,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": { "title": "Nom / Name", "type": "string", "required": true },
+                  "link": {
+                    "title": "Lien d'ouverture / Launch link",
+                    "description": "https://… (le Player POP refuse market://) ou une touche : key:KEYCODE_HOME",
+                    "type": "string",
+                    "placeholder": "https://www.netflix.com/browse",
+                    "required": true
+                  },
+                  "package": {
+                    "title": "Paquet Android (pour reconnaître l'appli affichée) / Android package",
+                    "type": "string",
+                    "placeholder": "com.netflix.ninja"
+                  }
+                }
+              }
+            },
             "debug": {
               "title": "Journal détaillé / Verbose log",
               "type": "boolean",
@@ -35,5 +70,27 @@
         }
       }
     }
-  }
+  },
+  "layout": [
+    {
+      "key": "players",
+      "type": "array",
+      "orderable": false,
+      "buttonText": "Ajouter un Player / Add Player",
+      "items": [
+        "players[].name",
+        "players[].host",
+        "players[].accessoryType",
+        {
+          "key": "players[].apps",
+          "type": "array",
+          "orderable": true,
+          "buttonText": "Ajouter une source / Add input",
+          "condition": { "functionBody": "return !model.players || !model.players[arrayIndices[0]] || model.players[arrayIndices[0]].accessoryType !== 'switch';" },
+          "items": ["players[].apps[].name", "players[].apps[].link", "players[].apps[].package"]
+        },
+        "players[].debug"
+      ]
+    }
+  ]
 }

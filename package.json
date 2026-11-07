@@ -1,8 +1,8 @@
 {
   "name": "homebridge-freebox-player-pop",
   "displayName": "Freebox Player POP",
-  "version": "0.2.0",
-  "description": "Turn a Freebox Player POP (Android TV) on and off from HomeKit — Allumer et éteindre un Freebox Player POP depuis HomeKit.",
+  "version": "0.3.0",
+  "description": "Freebox Player POP as a HomeKit TV: power, Control Center remote, volume, app inputs — Le Freebox Player POP en téléviseur HomeKit.",
   "main": "index.js",
   "bin": {
     "fbxpop-pair": "bin/fbxpop-pair.js"

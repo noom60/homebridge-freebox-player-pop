@@ -3,16 +3,28 @@
 [![npm](https://img.shields.io/npm/v/homebridge-freebox-player-pop)](https://www.npmjs.com/package/homebridge-freebox-player-pop)
 [![Tests](https://github.com/noom60/homebridge-freebox-player-pop/actions/workflows/publish.yml/badge.svg)](https://github.com/noom60/homebridge-freebox-player-pop/actions/workflows/publish.yml)
 
-Plugin [Homebridge](https://homebridge.io) qui ajoute un **interrupteur HomeKit**
-pour allumer et mettre en veille un **Freebox Player POP**.
-L'état affiché est celui que le Player annonce lui-même : si on l'éteint avec la
-vraie télécommande, HomeKit suit.
+Plugin [Homebridge](https://homebridge.io) qui fait d'un **Freebox Player POP**
+un **téléviseur HomeKit** :
+
+- **allumage / mise en veille**, avec l'état réel annoncé par le Player (si on
+  l'éteint avec la vraie télécommande, HomeKit suit) ;
+- **télécommande** du Centre de contrôle de l'iPhone (flèches, OK, retour,
+  accueil, lecture/pause, avance/retour rapide) ;
+- **volume** et **muet** (boutons latéraux de l'iPhone quand la télécommande est
+  ouverte) ;
+- **sources** : Oqee, Netflix, YouTube, Prime Video, Disney+, ou toute appli
+  ajoutée dans les réglages — l'app Maison affiche l'appli réellement ouverte.
+
+Un mode **interrupteur** simple (allumé / veille) reste disponible.
 
 Compatible Homebridge 1.8+ et 2.x, Node.js 22, 24 et 26.
 
-> **English summary** — Homebridge plugin exposing a HomeKit switch that turns a
-> Freebox Player POP (the Android TV set-top box of French ISP Free) on and off,
-> and reflects its real state. It speaks the Android TV Remote v2 protocol
+> **English summary** — Homebridge plugin exposing a Freebox Player POP (the
+> Android TV set-top box of French ISP Free) as a HomeKit **Television**: power
+> with real state, Control Center remote keys, volume/mute, and app inputs
+> (launched via https app links, which the POP accepts; it rejects market://
+> links), with the foreground app reflected as the active input. A plain switch
+> mode is also available. It speaks the Android TV Remote v2 protocol
 > directly (the Freebox OS API cannot control the POP). Pairing is done from the
 > plugin settings screen: click **Pair**, type the code shown on the TV, save,
 > restart. No open ports, no analytics, Player identity pinned by certificate
@@ -25,18 +37,47 @@ Compatible Homebridge 1.8+ et 2.x, Node.js 22, 24 et 26.
 2. Ouvrir les **réglages du plugin**. Allumer le Player (image à l'écran), saisir
    son adresse IP et cliquer sur **Appairer**, puis taper le code à 6 caractères
    affiché sur la TV. Une faute de frappe se corrige sans tout recommencer.
-3. Dans la liste en dessous, ajouter le Player (nom + IP), puis **Enregistrer**.
-   En JSON, ça donne :
+3. Dans la liste en dessous, ajouter le Player (nom + IP), choisir le type
+   **Téléviseur** ou **Interrupteur**, puis **Enregistrer**. En JSON :
 
    ```json
    {
      "platform": "FreeboxPlayerPop",
-     "players": [ { "name": "Freebox Player", "host": "192.168.1.XX" } ]
+     "players": [
+       { "name": "Freebox Player", "host": "192.168.1.XX", "accessoryType": "television" }
+     ]
    }
    ```
 
-4. Redémarrer Homebridge. Le journal affiche `Identité du Player mémorisée`,
-   `Connecté au Player`, puis `Allumé` ou `En veille`.
+4. Redémarrer Homebridge. Le journal affiche `Connecté au Player`, puis
+   `Allumé` ou `En veille`.
+5. **Mode Téléviseur seulement** : HomeKit impose qu'un téléviseur soit ajouté à
+   part. Dans l'app Maison : **+ → Ajouter un accessoire → Autres options**,
+   choisir le Player, et saisir le **code de Homebridge** (celui de la page
+   d'accueil de l'interface).
+
+Sans `accessoryType`, un Player configuré avant la 0.3.0 reste un interrupteur.
+Changer de type crée un nouvel accessoire dans l'app Maison : les automatisations
+qui utilisaient l'ancien sont à refaire.
+
+### Sources
+
+Chaque source a un **lien d'ouverture** et, facultatif, le **paquet Android** qui
+permet de reconnaître l'appli affichée (plusieurs paquets séparés par des
+virgules). Liens vérifiés sur un Player POP le 07/11/2026 :
+
+| Source | Lien | Paquet |
+|---|---|---|
+| Oqee | `key:KEYCODE_HOME` (écran d'accueil) | `net.oqee.androidtv, net.oqee.launcher` |
+| Netflix | `https://www.netflix.com/browse` | `com.netflix.ninja` |
+| YouTube | `https://www.youtube.com` | `com.google.android.youtube.tv` |
+| Prime Video | `https://app.primevideo.com` | `com.amazon.amazonvideo.livingroom` |
+| Disney+ | `https://www.disneyplus.com` | `com.disney.disneyplus` |
+
+Le Player POP **refuse** les liens `market://` et `intent:` (il répond par une
+erreur et coupe la connexion ; le journal l'indique). Pour une autre appli,
+utiliser son adresse web `https://…` : Android la confie à l'appli installée.
+Laisser la liste vide revient à la liste ci-dessus.
 
 **Mise à jour** : bouton « Mettre à jour » de l'onglet Plugins. L'appairage est
 conservé.
@@ -52,8 +93,9 @@ le **protocole télécommande Android TV v2**, celui de l'appli Google TV :
 
 - port **6467** : appairage, une seule fois ;
 - port **6466** : connexion permanente en TLS avec le certificat client appairé.
-  Le Player y annonce son état (`remoteStart.started`) et reçoit la touche
-  `KEYCODE_POWER`.
+  Le Player y annonce son état (`remoteStart.started`) et l'appli au premier
+  plan, et reçoit les touches (`remoteKeyInject`) et les ouvertures d'appli
+  (`remoteAppLinkLaunchRequest`).
 
 ### Pourquoi pas homebridge-androidtv ?
 
@@ -104,7 +146,7 @@ correctement (longueurs varint, messages collés ou coupés).
 
 ```sh
 npm ci
-npm test          # 14 tests : faux Player TLS local (télécommande et appairage),
+npm test          # 16 tests : faux Player TLS local (télécommande et appairage),
                   # serveur de l'écran de réglages piloté comme par Homebridge
 ```
 
