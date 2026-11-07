@@ -103,6 +103,11 @@ test('appli au premier plan annoncée, ouverture d\'appli envoyée au Player', a
   const app = once(r, 'app');
   r.start();
   assert.strictEqual(await app, 'net.oqee.androidtv');
+  assert.strictEqual(await r.waitForApp(['net.oqee.androidtv'], 50), true, 'appli déjà au premier plan');
+  assert.strictEqual(await r.waitForApp(['fr.free.aktu'], 50), false, 'autre appli : délai écoulé');
+  const later = r.waitForApp(['com.netflix.ninja'], 2000);
+  playerSocket.write(P.encode(P.RemoteMessage, { remoteImeKeyInject: { appInfo: { appPackage: 'com.netflix.ninja' } } }));
+  assert.strictEqual(await later, true, "l'appli attendue arrive pendant l'attente");
   r.launchApp('com.netflix.ninja');
   r.launchApp('https://www.youtube.com/watch?v=abc');
   r.launchApp('key:KEYCODE_HOME');
@@ -116,6 +121,16 @@ test('appli au premier plan annoncée, ouverture d\'appli envoyée au Player', a
   const links = got.filter((m) => m.remoteAppLinkLaunchRequest).map((m) => m.remoteAppLinkLaunchRequest.appLink);
   assert.deepStrictEqual(links, ['market://launch?id=com.netflix.ninja', 'https://www.youtube.com/watch?v=abc']);
   assert.strictEqual(got.filter((m) => m.remoteKeyInject && m.remoteKeyInject.keyCode === P.KeyCode.KEYCODE_HOME).length, 1);
+
+  // Séquence FreeTV : touches dans l'ordre, espacées ; une touche inconnue bloque tout avant envoi.
+  got.length = 0;
+  await assert.rejects(r.sendKeys(['KEYCODE_HOME', 'KEYCODE_BIDON']), /Touche inconnue/);
+  const t0 = Date.now();
+  await r.sendKeys(['KEYCODE_HOME', 'KEYCODE_HOME', 'KEYCODE_DPAD_CENTER'], 100);
+  assert.ok(Date.now() - t0 >= 200, 'les touches sont espacées');
+  await new Promise((res) => setTimeout(res, 150));
+  assert.deepStrictEqual(got.filter((m) => m.remoteKeyInject).map((m) => m.remoteKeyInject.keyCode),
+    [P.KeyCode.KEYCODE_HOME, P.KeyCode.KEYCODE_HOME, P.KeyCode.KEYCODE_DPAD_CENTER]);
   r.stop(); server.close();
 });
 
@@ -131,12 +146,16 @@ test('sources : liste par défaut, validation et plafond', () => {
     { name: '', link: 'https://vide.example' },
     { name: 'Piège', link: 'https://x.example', package: 'com.x; rm -rf /' },
     { name: 'Schéma refusé', link: 'javascript:alert(1)' },
+    { name: 'Touche bidon', link: 'keys:KEYCODE_HOME,KEYCODE_BIDON' },
+    { name: 'FreeTV', link: 'keys:KEYCODE_HOME,KEYCODE_HOME,KEYCODE_DPAD_CENTER', package: 'net.oqee.androidtv' },
     null,
   ], log, 'x'), [
     { name: 'Canal+', link: 'https://www.canalplus.com', packages: ['com.canal.android.canal'] },
     { name: 'Sans lien', link: 'com.exemple.tv', packages: ['com.exemple.tv'] },
     { name: 'Accueil', link: 'key:KEYCODE_HOME', packages: ['net.oqee.androidtv', 'net.oqee.launcher'] },
+    { name: 'FreeTV', link: 'keys:KEYCODE_HOME,KEYCODE_HOME,KEYCODE_DPAD_CENTER', packages: ['net.oqee.androidtv'] },
   ]);
+  assert.strictEqual(DEFAULT_APPS[0].name, 'FreeTV');
   const many = Array.from({ length: 50 }, (_, i) => ({ name: `A${i}`, link: `https://a${i}.example` }));
   assert.strictEqual(sanitizeApps(many, log, 'x').length, 30);
 });

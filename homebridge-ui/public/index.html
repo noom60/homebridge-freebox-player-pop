@@ -30,7 +30,7 @@
   const TEXT = {
     fr: {
       title: 'Appairage du Player',
-      intro: "À faire une fois par Player. Le Player doit être allumé, avec l'image à l'écran.",
+      intro: "À faire une fois par Player. Le Player doit être allumé, avec l'image à l'écran. Attention : le Player POP ne garde qu'un seul appareil appairé ; appairer un autre appareil (appli Google TV…) déconnecte Homebridge.",
       host: 'Adresse IP du Player',
       pair: 'Appairer',
       codeLabel: 'Code à 6 caractères affiché sur la TV',
@@ -41,13 +41,14 @@
       connecting: 'Connexion au Player…',
       codeShown: 'Le code est affiché sur la TV : saisis-le ci-dessous.',
       wrongCode: 'Code incorrect, réessaie.',
-      success: "Appairé ✓ Ajoute le Player dans la liste ci-dessous si ce n'est pas fait, enregistre, puis redémarre Homebridge.",
+      success: 'Appairé ✓ Le Player est déjà dans la liste. Redémarre maintenant Homebridge (ou le pont du plugin) pour que la connexion reprenne.',
+      successSaved: "Appairé ✓ Le Player a été ajouté à la liste avec son adresse IP et la configuration est enregistrée. Redémarre maintenant Homebridge (ou le pont du plugin). En mode Téléviseur, ajoute-le ensuite dans l'app Maison avec le « Setup Code » indiqué dans le journal.",
       cancelled: 'Appairage annulé.',
       invalidIp: 'Adresse IP invalide.',
     },
     en: {
       title: 'Player pairing',
-      intro: 'Do this once per Player. The Player must be on, with a picture on screen.',
+      intro: 'Do this once per Player. The Player must be on, with a picture on screen. Note: the Player POP keeps only one paired device; pairing another one (Google TV app…) disconnects Homebridge.',
       host: 'Player IP address',
       pair: 'Pair',
       codeLabel: '6-character code shown on the TV',
@@ -58,7 +59,8 @@
       connecting: 'Connecting to the Player…',
       codeShown: 'The code is shown on the TV: type it below.',
       wrongCode: 'Wrong code, try again.',
-      success: 'Paired ✓ Add the Player to the list below if needed, save, then restart Homebridge.',
+      success: 'Paired ✓ The Player is already in the list. Now restart Homebridge (or the plugin child bridge).',
+      successSaved: 'Paired ✓ The Player was added to the list with its IP address and the config was saved. Now restart Homebridge (or the plugin child bridge). In Television mode, then add it in the Home app with the « Setup Code » shown in the log.',
       cancelled: 'Pairing cancelled.',
       invalidIp: 'Invalid IP address.',
     },
@@ -122,6 +124,27 @@
     } finally { homebridge.hideSpinner(); }
   });
 
+  /**
+   * Après l'appairage : s'assure que le Player figure dans la liste avec son IP.
+   * - déjà présent avec cette IP : rien à faire ;
+   * - un seul Player sans IP : on complète son IP (piège rencontré en vrai) ;
+   * - sinon : on ajoute un Player « Freebox Player » en mode téléviseur.
+   * Puis on enregistre. Rend true si la configuration a changé.
+   */
+  async function addPlayerToConfig(host) {
+    const cfg = await homebridge.getPluginConfig();
+    let block = cfg.find((c) => c && c.platform === 'FreeboxPlayerPop');
+    if (!block) { block = { platform: 'FreeboxPlayerPop', players: [] }; cfg.push(block); }
+    if (!Array.isArray(block.players)) block.players = [];
+    if (block.players.some((p) => p && p.host === host)) return false;
+    const noHost = block.players.filter((p) => p && !p.host);
+    if (noHost.length === 1) noHost[0].host = host;
+    else block.players.push({ name: 'Freebox Player', host, accessoryType: 'television' });
+    await homebridge.updatePluginConfig(cfg);
+    await homebridge.savePluginConfig();
+    return true;
+  }
+
   async function sendCode() {
     homebridge.showSpinner();
     try {
@@ -131,7 +154,10 @@
         codeInput.select();
       } else {
         showCodeStep(false);
-        showResult('success', t('success'));
+        const host = hostInput.value.trim();
+        let added = false;
+        try { added = await addPlayerToConfig(host); } catch (e) { /* l'appairage reste valable */ }
+        showResult('success', added ? t('successSaved') : t('success'));
         homebridge.toast.success(t('paired'));
         refreshStatus();
       }

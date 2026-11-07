@@ -12,7 +12,8 @@ un **téléviseur HomeKit** :
   accueil, lecture/pause, avance/retour rapide) ;
 - **volume** et **muet** (boutons latéraux de l'iPhone quand la télécommande est
   ouverte) ;
-- **sources** : Oqee, Netflix, YouTube, Prime Video, Disney+, ou toute appli
+- **sources** : FreeTV (liste des chaînes), Accueil Free, Netflix, YouTube,
+  Prime Video, Disney+, ou toute appli
   ajoutée dans les réglages — l'app Maison affiche l'appli réellement ouverte.
 
 Un mode **interrupteur** simple (allumé / veille) reste disponible.
@@ -36,9 +37,11 @@ Compatible Homebridge 1.8+ et 2.x, Node.js 22, 24 et 26.
    **`homebridge-freebox-player-pop`** et l'installer.
 2. Ouvrir les **réglages du plugin**. Allumer le Player (image à l'écran), saisir
    son adresse IP et cliquer sur **Appairer**, puis taper le code à 6 caractères
-   affiché sur la TV. Une faute de frappe se corrige sans tout recommencer.
-3. Dans la liste en dessous, ajouter le Player (nom + IP), choisir le type
-   **Téléviseur** ou **Interrupteur**, puis **Enregistrer**. En JSON :
+   affiché sur la TV. Une faute de frappe se corrige sans tout recommencer. Le
+   Player est alors **ajouté tout seul à la liste**, avec son IP, en mode
+   Téléviseur, et la configuration est enregistrée.
+3. Dans la liste, ajuster si besoin le nom ou le type (**Téléviseur** ou
+   **Interrupteur**). En JSON :
 
    ```json
    {
@@ -53,8 +56,15 @@ Compatible Homebridge 1.8+ et 2.x, Node.js 22, 24 et 26.
    `Allumé` ou `En veille`.
 5. **Mode Téléviseur seulement** : HomeKit impose qu'un téléviseur soit ajouté à
    part. Dans l'app Maison : **+ → Ajouter un accessoire → Autres options**,
-   choisir le Player, et saisir le **code de Homebridge** (celui de la page
-   d'accueil de l'interface).
+   choisir le Player, et saisir le **« Setup Code »** indiqué dans le journal
+   Homebridge (ligne « Please add [Freebox Player …] manually in Home app »). Si
+   le plugin tourne dans un pont séparé (*child bridge*), c'est le code de ce
+   pont, pas celui de la page d'accueil.
+
+> ⚠️ **Le Player POP ne garde qu'un seul appareil appairé.** Appairer un autre
+> appareil (appli Google TV du téléphone, autre Homebridge…) efface l'appairage de
+> Homebridge : le journal affiche alors « Le Player refuse le certificat ».
+> Refaire l'appairage dans les réglages, puis redémarrer le pont.
 
 Sans `accessoryType`, un Player configuré avant la 0.3.0 reste un interrupteur.
 Changer de type crée un nouvel accessoire dans l'app Maison : les automatisations
@@ -68,13 +78,20 @@ virgules). Liens vérifiés sur un Player POP le 07/11/2026 :
 
 | Source | Lien | Paquet |
 |---|---|---|
-| Oqee | `key:KEYCODE_HOME` (écran d'accueil) | `net.oqee.androidtv, net.oqee.launcher` |
+| FreeTV | `keys:KEYCODE_HOME,KEYCODE_DPAD_DOWN,KEYCODE_DPAD_CENTER` | `net.oqee.androidtv` |
+| Accueil Free | `key:KEYCODE_HOME` | `net.oqee.launcher` |
 | Netflix | `https://www.netflix.com/browse` | `com.netflix.ninja` |
 | YouTube | `https://www.youtube.com` | `com.google.android.youtube.tv` |
 | Prime Video | `https://app.primevideo.com` | `com.amazon.amazonvideo.livingroom` |
 | Disney+ | `https://www.disneyplus.com` | `com.disney.disneyplus` |
 
-Le Player POP **refuse** les liens `market://` et `intent:` (il répond par une
+**FreeTV** (ex-Oqee) n'a pas de lien : c'est la 1re vignette de l'accueil Free,
+juste sous la barre de menu. La source rejoue donc Accueil, ↓, OK (12 sur 12 sur
+un vrai Player, quel que soit le point de départ), vérifie que FreeTV est bien au
+premier plan et recommence sinon (3 essais). Un lien `keys:` accepte jusqu'à
+10 touches séparées par des virgules.
+
+Le Player POP **refuse** les liens `market://`, `intent:` et `android-app://` (il répond par une
 erreur et coupe la connexion ; le journal l'indique). Pour une autre appli,
 utiliser son adresse web `https://…` : Android la confie à l'appli installée.
 Laisser la liste vide revient à la liste ci-dessus.
@@ -146,8 +163,8 @@ correctement (longueurs varint, messages collés ou coupés).
 
 ```sh
 npm ci
-npm test          # 16 tests : faux Player TLS local (télécommande et appairage),
-                  # serveur de l'écran de réglages piloté comme par Homebridge
+npm test          # 20 tests : faux Player TLS local (télécommande et appairage),
+                  # serveur et logique de l'écran de réglages
 ```
 
 Publier une version :

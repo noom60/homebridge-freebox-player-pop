@@ -13,13 +13,19 @@ const PLUGIN_NAME = 'homebridge-freebox-player-pop';
 const PLATFORM_NAME = 'FreeboxPlayerPop';
 
 /**
- * Sources proposées si la configuration n'en donne pas. Liens vérifiés sur un
- * Player POP le 07/11/2026 : il accepte les liens https:// (confiés à l'appli),
- * refuse market:// et intent:. Oqee n'a pas de lien : c'est l'écran d'accueil.
+ * Sources proposées si la configuration n'en donne pas. Vérifié sur un Player
+ * POP le 07/11/2026 : il accepte les liens https:// (confiés à l'appli),
+ * refuse market://, intent: et android-app://. FreeTV (ex-Oqee,
+ * net.oqee.androidtv) n'a pas de lien : c'est la 1re vignette de l'accueil,
+ * juste sous la barre de menu où arrive la sélection après Accueil.
  * `packages` sert à reconnaître l'appli affichée.
  */
 const DEFAULT_APPS = [
-  { name: 'Oqee', link: 'key:KEYCODE_HOME', packages: ['net.oqee.androidtv', 'net.oqee.launcher'] },
+  // Accueil, ↓, OK (séquence trouvée par Alex) : 12 sur 12 sur un vrai Player,
+  // depuis FreeTV, l'accueil, YouTube, Netflix et Disney+. Si une autre appli
+  // s'ouvre quand même, le plugin le voit et recommence — voir runSequence().
+  { name: 'FreeTV', link: 'keys:KEYCODE_HOME,KEYCODE_DPAD_DOWN,KEYCODE_DPAD_CENTER', packages: ['net.oqee.androidtv'] },
+  { name: 'Accueil Free', link: 'key:KEYCODE_HOME', packages: ['net.oqee.launcher'] },
   { name: 'Netflix', link: 'https://www.netflix.com/browse', packages: ['com.netflix.ninja'] },
   { name: 'YouTube', link: 'https://www.youtube.com', packages: ['com.google.android.youtube.tv'] },
   { name: 'Prime Video', link: 'https://app.primevideo.com', packages: ['com.amazon.amazonvideo.livingroom'] },
@@ -58,7 +64,11 @@ class FreeboxPlayerPopPlatform {
     for (const conf of list) {
       // Une erreur sur un Player ne doit ni bloquer les autres ni faire tomber Homebridge.
       try {
-        if (!conf || !conf.host) { this.log.warn('Player ignoré : adresse IP manquante'); continue; }
+        if (!conf || !conf.host) {
+          this.log.error(`Player « ${(conf && conf.name) || '?'} » ignoré : adresse IP manquante. Renseigne ` +
+            '« Adresse IP du Player » dans la liste des réglages du plugin (ou refais l\'appairage, qui la remplit).');
+          continue;
+        }
         const name = conf.name || 'Freebox Player';
         // Sans réglage explicite, on garde l'interrupteur des versions 0.1/0.2
         // pour ne pas casser les automatisations existantes.
@@ -131,7 +141,14 @@ class PlayerBase {
     this.remote.on('debug', (m) => this.debug && this.log.info(`[${name}] ${m}`));
     this.remote.on('connected', () => { alerted = false; this.log.info(`[${name}] Connecté au Player`); });
     this.remote.on('disconnected', () => this.log.warn(`[${name}] Connexion au Player perdue, reconnexion automatique`));
-    this.remote.on('unpaired', () => this.log.error(`[${name}] Le Player refuse le certificat. Refais l'appairage : ${pairHint}`));
+    let unpairedLogged = false;
+    this.remote.on('unpaired', () => {
+      if (unpairedLogged) return;   // une fois par démarrage, pas à chaque tentative
+      unpairedLogged = true;
+      this.log.error(`[${name}] Le Player refuse le certificat de Homebridge. Le Player POP ne garde qu'UN appareil ` +
+        'appairé : si un autre appareil a été appairé depuis (appli Google TV du téléphone, autre Homebridge…), ' +
+        `il a remplacé celui-ci. Refais l'appairage (${pairHint}), puis redémarre ce pont.`);
+    });
     this.remote.on('fingerprint', (fp) => {
       try {
         store.saveCerts(storagePath, conf.host, { ...certs, serverFingerprint: fp });
@@ -335,19 +352,42 @@ class PlayerTelevision extends PlayerBase {
       await this.setPower(true);
       if (!(await this.waitPower(true, 10000))) throw this.hapError();
     }
-    this.log.info(`[${this.name}] Ouverture de ${app.name}`);
-    try {
-      this.remote.launchApp(app.link);
-    } catch (e) {
-      this.log.warn(`[${this.name}] ${app.name} non ouvert : ${e.message}`);
-      throw this.hapError();
-    }
     this.activeIdentifier = id;
+    if (!app.link.startsWith('keys:')) {
+      this.log.info(`[${this.name}] Ouverture de ${app.name}`);
+      try { await this.remote.launchApp(app.link); } catch (e) {
+        this.log.warn(`[${this.name}] ${app.name} non ouvert : ${e.message}`);
+        throw this.hapError();
+      }
+      return;
+    }
+    // Enchaînement de touches (plusieurs secondes) : HomeKit est servi tout de
+    // suite, la navigation continue en arrière-plan et se corrige toute seule.
+    this.runSequence(app).catch((e) => this.log.warn(`[${this.name}] ${app.name} non ouvert : ${e.message}`));
+  }
+
+  /**
+   * Joue la séquence de touches puis vérifie l'appli arrivée au premier plan ;
+   * si ce n'est pas la bonne (navigation déviée), recommence (3 essais).
+   */
+  async runSequence(app) {
+    const token = (this.sequenceToken = (this.sequenceToken || 0) + 1);   // une nouvelle source annule l'ancienne
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      if (token !== this.sequenceToken) return;
+      this.log.info(`[${this.name}] Ouverture de ${app.name}${attempt > 1 ? ` (essai ${attempt})` : ''}`);
+      await this.remote.launchApp(app.link);
+      if (!app.packages.length || await this.remote.waitForApp(app.packages, 3000)) return;
+    }
+    this.log.warn(`[${this.name}] ${app.name} : arrivé sur ${this.remote.currentApp} au lieu de ${app.packages.join(' / ')} ` +
+      'après 3 essais. La disposition de l\'écran d\'accueil a peut-être changé : ajuste le lien de cette source.');
   }
 }
 
 const PACKAGE_RE = /^([A-Za-z][\w-]*\.)+[A-Za-z][\w-]*$/;
-const LINK_RE = /^(https?:\/\/[^\s]{3,500}|key:KEYCODE_[A-Z0-9_]+|([A-Za-z][\w-]*\.)+[A-Za-z][\w-]*)$/;
+const LINK_RE = /^(https?:\/\/[^\s]{3,500}|key:KEYCODE_[A-Z0-9_]+|keys:KEYCODE_[A-Z0-9_]+(,KEYCODE_[A-Z0-9_]+){0,9}|([A-Za-z][\w-]*\.)+[A-Za-z][\w-]*)$/;
+const { KeyCode } = require('./lib/protocol');
+/** Toutes les touches citées par un lien key:/keys: existent-elles ? */
+const keysKnown = (link) => !/^keys?:/.test(link) || link.replace(/^keys?:/, '').split(',').every((k) => KeyCode[k] !== undefined);
 
 /**
  * Sources de la configuration, validées ; liste par défaut si absente.
@@ -363,7 +403,7 @@ function sanitizeApps(apps, log, name) {
     const packages = pkgText.split(',').map((s) => s.trim()).filter(Boolean);
     // Sans lien, on tente le nom de paquet (marche sur d'autres Android TV, pas sur le POP).
     const link = a && typeof a.link === 'string' && a.link.trim() ? a.link.trim() : packages[0] || '';
-    if (!appName || !LINK_RE.test(link) || !packages.every((p) => PACKAGE_RE.test(p))) {
+    if (!appName || !LINK_RE.test(link) || !keysKnown(link) || !packages.every((p) => PACKAGE_RE.test(p))) {
       log.warn(`[${name}] Source ignorée (nom, lien ou paquet invalide) : ${JSON.stringify(a)}`);
       continue;
     }

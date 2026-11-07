@@ -3,8 +3,8 @@
   "pluginType": "platform",
   "singular": true,
   "customUi": true,
-  "headerDisplay": "Pilote un Freebox Player POP depuis HomeKit. Appaire chaque Player avec le bouton « Appairer » ci-dessus, puis ajoute-le dans la liste. — Controls a Freebox Player POP from HomeKit. Pair each Player with the « Pair » button above, then add it to the list.",
-  "footerDisplay": "Mode Téléviseur : après le redémarrage, ajoute le Player dans l'app Maison (+ → Ajouter un accessoire → Autres options) avec le code de Homebridge. — Television mode: after restarting, add the Player in the Home app with the Homebridge setup code.",
+  "headerDisplay": "Pilote un Freebox Player POP depuis HomeKit. Appaire chaque Player avec le bouton « Appairer » ci-dessus : il est ajouté à la liste tout seul. — Controls a Freebox Player POP from HomeKit. Pair each Player with the « Pair » button above: it is added to the list automatically.",
+  "footerDisplay": "Mode Téléviseur : après le redémarrage, ajoute le Player dans l'app Maison (+ → Ajouter un accessoire → Autres options) avec le « Setup Code » indiqué dans le journal. — Television mode: after restarting, add the Player in the Home app with the « Setup Code » shown in the log.",
   "schema": {
     "type": "object",
     "properties": {
@@ -39,7 +39,7 @@
             },
             "apps": {
               "title": "Sources (applis) / Inputs (apps)",
-              "description": "Mode Téléviseur. Laisser vide pour la liste par défaut : Oqee, Netflix, YouTube, Prime Video, Disney+. / Leave empty for the default list.",
+              "description": "Mode Téléviseur. Laisser vide pour la liste par défaut : FreeTV, Accueil Free, Netflix, YouTube, Prime Video, Disney+. / Leave empty for the default list.",
               "type": "array",
               "maxItems": 30,
               "items": {
@@ -48,7 +48,7 @@
                   "name": { "title": "Nom / Name", "type": "string", "required": true },
                   "link": {
                     "title": "Lien d'ouverture / Launch link",
-                    "description": "https://… (le Player POP refuse market://) ou une touche : key:KEYCODE_HOME",
+                    "description": "https://… (le Player POP refuse market://), une touche (key:KEYCODE_HOME) ou une suite de touches (keys:KEYCODE_HOME,KEYCODE_DPAD_DOWN,KEYCODE_DPAD_CENTER)",
                     "type": "string",
                     "placeholder": "https://www.netflix.com/browse",
                     "required": true
