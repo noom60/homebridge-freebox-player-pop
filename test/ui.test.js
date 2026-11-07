@@ -42,6 +42,24 @@ test('appairage : configuration vide → Player ajouté en mode téléviseur', a
   assert.deepStrictEqual(ui.config(), [{ platform: 'FreeboxPlayerPop', players: [{ name: 'Freebox Player', host: '192.168.1.50', accessoryType: 'television' }] }]);
 });
 
+test('ordre des sources : TLV HomeKit attendu', () => {
+  const { displayOrderTlv } = require('../index');
+  const buf = Buffer.from(displayOrderTlv([1, 2, 6]), 'base64');
+  assert.deepStrictEqual([...buf], [1, 4, 1, 0, 0, 0, 0, 0, 1, 4, 2, 0, 0, 0, 0, 0, 1, 4, 6, 0, 0, 0]);
+});
+
+test('sources masquées : mémorisées par Player sur disque', () => {
+  const store = require('../lib/store');
+  const os = require('node:os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fbxpop-'));
+  assert.deepStrictEqual([...store.loadHiddenInputs(dir, '192.168.1.37')], []);
+  store.saveHiddenInputs(dir, '192.168.1.37', new Set(['Disney+', 'Prime Video']));
+  assert.deepStrictEqual([...store.loadHiddenInputs(dir, '192.168.1.37')].sort(), ['Disney+', 'Prime Video']);
+  assert.deepStrictEqual([...store.loadHiddenInputs(dir, '192.168.1.50')], [], 'autre Player : indépendant');
+  fs.writeFileSync(path.join(dir, 'freebox-player-pop', '192.168.1.37-sources.json'), '{pas du json');
+  assert.deepStrictEqual([...store.loadHiddenInputs(dir, '192.168.1.37')], [], 'fichier abîmé : rien de masqué, pas de plantage');
+});
+
 test('appairage : un 2e Player avec une autre IP est ajouté, le 1er intact', async () => {
   const ui = load([{ platform: 'FreeboxPlayerPop', players: [{ name: 'Salon', host: '192.168.1.37' }] }]);
   await ui.addPlayerToConfig('192.168.1.50');

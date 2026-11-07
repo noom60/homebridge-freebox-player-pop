@@ -308,18 +308,36 @@ class PlayerTelevision extends PlayerBase {
     });
     tv.addLinkedService(speaker);
 
-    // Sources = applis du Player.
+    // Sources = applis du Player. L'app Maison masque d'office les sources
+    // apparues après l'ajout du téléviseur : TargetVisibilityState permet de les
+    // (ré)afficher depuis ses réglages, et le choix est mémorisé sur disque.
     this.apps = sanitizeApps(conf.apps, this.log, name);
+    const storagePath = api.user.storagePath();
+    const hidden = store.loadHiddenInputs(storagePath, conf.host);
     this.apps.forEach((app, i) => {
       const input = accessory.addService(Service.InputSource, app.name, `app-${i}`);
+      const vis = hidden.has(app.name) ? C.CurrentVisibilityState.HIDDEN : C.CurrentVisibilityState.SHOWN;
       input
         .setCharacteristic(C.Identifier, i + 1)
         .setCharacteristic(C.ConfiguredName, app.name)
         .setCharacteristic(C.IsConfigured, C.IsConfigured.CONFIGURED)
         .setCharacteristic(C.InputSourceType, C.InputSourceType.APPLICATION)
-        .setCharacteristic(C.CurrentVisibilityState, C.CurrentVisibilityState.SHOWN);
+        .setCharacteristic(C.CurrentVisibilityState, vis);
+      input.getCharacteristic(C.TargetVisibilityState)
+        .onGet(() => (hidden.has(app.name) ? C.TargetVisibilityState.HIDDEN : C.TargetVisibilityState.SHOWN))
+        .onSet((v) => {
+          const hide = v === C.TargetVisibilityState.HIDDEN;
+          if (hide) hidden.add(app.name); else hidden.delete(app.name);
+          input.updateCharacteristic(C.CurrentVisibilityState,
+            hide ? C.CurrentVisibilityState.HIDDEN : C.CurrentVisibilityState.SHOWN);
+          try { store.saveHiddenInputs(storagePath, conf.host, hidden); } catch (e) {
+            this.log.warn(`[${name}] Choix d'affichage des sources non enregistré : ${e.message}`);
+          }
+        });
       tv.addLinkedService(input);
     });
+    // Ordre d'affichage = ordre de la configuration.
+    tv.setCharacteristic(C.DisplayOrder, displayOrderTlv(this.apps.map((_, i) => i + 1)));
     this.activeIdentifier = this.apps.length ? 1 : 0;
     tv.getCharacteristic(C.ActiveIdentifier)
       .onGet(() => this.activeIdentifier)
@@ -413,5 +431,21 @@ function sanitizeApps(apps, log, name) {
   return ok;
 }
 
+/**
+ * DisplayOrder HomeKit : TLV8 « 0x01, 4, identifiant (uint32 LE) » par source,
+ * séparés par « 0x00, 0x00 », encodé en base64.
+ */
+function displayOrderTlv(ids) {
+  const parts = [];
+  ids.forEach((id, i) => {
+    if (i) parts.push(Buffer.from([0x00, 0x00]));
+    const b = Buffer.alloc(6);
+    b[0] = 0x01; b[1] = 0x04; b.writeUInt32LE(id, 2);
+    parts.push(b);
+  });
+  return Buffer.concat(parts).toString('base64');
+}
+
 module.exports.sanitizeApps = sanitizeApps;
+module.exports.displayOrderTlv = displayOrderTlv;
 module.exports.DEFAULT_APPS = DEFAULT_APPS;

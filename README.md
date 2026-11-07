@@ -96,6 +96,11 @@ erreur et coupe la connexion ; le journal l'indique). Pour une autre appli,
 utiliser son adresse web `https://…` : Android la confie à l'appli installée.
 Laisser la liste vide revient à la liste ci-dessus.
 
+**Une source n'apparaît pas dans l'app Maison ?** L'app Maison masque d'office
+les sources ajoutées après l'ajout du téléviseur. Ouvrir les réglages du
+téléviseur → **Entrées**, et activer la source. Ce choix (afficher / masquer) est
+mémorisé par le plugin dans `<stockage Homebridge>/freebox-player-pop/<IP>-sources.json`.
+
 **Mise à jour** : bouton « Mettre à jour » de l'onglet Plugins. L'appairage est
 conservé.
 
@@ -163,7 +168,7 @@ correctement (longueurs varint, messages collés ou coupés).
 
 ```sh
 npm ci
-npm test          # 20 tests : faux Player TLS local (télécommande et appairage),
+npm test          # 22 tests : faux Player TLS local (télécommande et appairage),
                   # serveur et logique de l'écran de réglages
 ```
 
