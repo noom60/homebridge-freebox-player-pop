@@ -134,7 +134,7 @@
   async function addPlayerToConfig(host) {
     const cfg = await homebridge.getPluginConfig();
     let block = cfg.find((c) => c && c.platform === 'FreeboxPlayerPop');
-    if (!block) { block = { platform: 'FreeboxPlayerPop', players: [] }; cfg.push(block); }
+    if (!block) { block = { platform: 'FreeboxPlayerPop', name: 'Freebox Player POP', players: [] }; cfg.push(block); }
     if (!Array.isArray(block.players)) block.players = [];
     if (block.players.some((p) => p && p.host === host)) return false;
     const noHost = block.players.filter((p) => p && !p.host);

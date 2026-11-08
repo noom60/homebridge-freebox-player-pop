@@ -39,7 +39,7 @@ test('appairage : Player déjà présent avec cette IP → rien ne change', asyn
 test('appairage : configuration vide → Player ajouté en mode téléviseur', async () => {
   const ui = load([]);
   assert.strictEqual(await ui.addPlayerToConfig('192.168.1.50'), true);
-  assert.deepStrictEqual(ui.config(), [{ platform: 'FreeboxPlayerPop', players: [{ name: 'Freebox Player', host: '192.168.1.50', accessoryType: 'television' }] }]);
+  assert.deepStrictEqual(ui.config(), [{ platform: 'FreeboxPlayerPop', name: 'Freebox Player POP', players: [{ name: 'Freebox Player', host: '192.168.1.50', accessoryType: 'television' }] }]);
 });
 
 test('ordre des sources : TLV HomeKit attendu', () => {
@@ -64,4 +64,22 @@ test('appairage : un 2e Player avec une autre IP est ajouté, le 1er intact', as
   const ui = load([{ platform: 'FreeboxPlayerPop', players: [{ name: 'Salon', host: '192.168.1.37' }] }]);
   await ui.addPlayerToConfig('192.168.1.50');
   assert.deepStrictEqual(ui.config()[0].players.map((p) => p.host), ['192.168.1.37', '192.168.1.50']);
+});
+
+test('config.schema.json : conforme aux contrôles Homebridge (required en tableau, name en tête)', () => {
+  const schema = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config.schema.json'), 'utf8')).schema;
+  assert.strictEqual(schema.properties.name.type, 'string');
+  const walk = (node) => {
+    if (!node || typeof node !== 'object') return;
+    if (node.properties) {
+      for (const [k, v] of Object.entries(node.properties)) {
+        assert.ok(typeof v.required !== 'boolean', `"required" booléen sur ${k}`);
+        walk(v);
+      }
+      if (node.required) assert.ok(Array.isArray(node.required));
+    }
+    if (node.items) walk(node.items);
+  };
+  walk(schema);
+  assert.deepStrictEqual(schema.properties.players.items.required, ['name', 'host']);
 });

@@ -8,6 +8,11 @@
   "schema": {
     "type": "object",
     "properties": {
+      "name": {
+        "title": "Nom de la plateforme / Platform name",
+        "type": "string",
+        "default": "Freebox Player POP"
+      },
       "players": {
         "title": "Players",
         "type": "array",
@@ -17,23 +22,31 @@
             "name": {
               "title": "Nom dans HomeKit / HomeKit name",
               "type": "string",
-              "default": "Freebox Player",
-              "required": true
+              "default": "Freebox Player"
             },
             "host": {
               "title": "Adresse IP du Player / Player IP address",
               "type": "string",
               "format": "ipv4",
-              "placeholder": "192.168.1.37",
-              "required": true
+              "placeholder": "192.168.1.37"
             },
             "accessoryType": {
               "title": "Type d'accessoire / Accessory type",
               "type": "string",
               "default": "television",
               "oneOf": [
-                { "title": "Téléviseur : allumage, télécommande, volume, sources / Television", "enum": ["television"] },
-                { "title": "Interrupteur allumé / veille / Switch", "enum": ["switch"] }
+                {
+                  "title": "Téléviseur : allumage, télécommande, volume, sources / Television",
+                  "enum": [
+                    "television"
+                  ]
+                },
+                {
+                  "title": "Interrupteur allumé / veille / Switch",
+                  "enum": [
+                    "switch"
+                  ]
+                }
               ],
               "description": "Changer de type crée un nouvel accessoire dans l'app Maison (automatisations à refaire). / Changing type creates a new Home app accessory."
             },
@@ -45,20 +58,26 @@
               "items": {
                 "type": "object",
                 "properties": {
-                  "name": { "title": "Nom / Name", "type": "string", "required": true },
+                  "name": {
+                    "title": "Nom / Name",
+                    "type": "string"
+                  },
                   "link": {
                     "title": "Lien d'ouverture / Launch link",
                     "description": "https://… (le Player POP refuse market://), une touche (key:KEYCODE_HOME) ou une suite de touches (keys:KEYCODE_HOME,KEYCODE_DPAD_DOWN,KEYCODE_DPAD_CENTER)",
                     "type": "string",
-                    "placeholder": "https://www.netflix.com/browse",
-                    "required": true
+                    "placeholder": "https://www.netflix.com/browse"
                   },
                   "package": {
                     "title": "Paquet Android (pour reconnaître l'appli affichée) / Android package",
                     "type": "string",
                     "placeholder": "com.netflix.ninja"
                   }
-                }
+                },
+                "required": [
+                  "name",
+                  "link"
+                ]
               }
             },
             "debug": {
@@ -66,12 +85,20 @@
               "type": "boolean",
               "default": false
             }
-          }
+          },
+          "required": [
+            "name",
+            "host"
+          ]
         }
       }
-    }
+    },
+    "required": [
+      "name"
+    ]
   },
   "layout": [
+    "name",
     {
       "key": "players",
       "type": "array",
@@ -86,8 +113,14 @@
           "type": "array",
           "orderable": true,
           "buttonText": "Ajouter une source / Add input",
-          "condition": { "functionBody": "return !model.players || !model.players[arrayIndices[0]] || model.players[arrayIndices[0]].accessoryType !== 'switch';" },
-          "items": ["players[].apps[].name", "players[].apps[].link", "players[].apps[].package"]
+          "condition": {
+            "functionBody": "return !model.players || !model.players[arrayIndices[0]] || model.players[arrayIndices[0]].accessoryType !== 'switch';"
+          },
+          "items": [
+            "players[].apps[].name",
+            "players[].apps[].link",
+            "players[].apps[].package"
+          ]
         },
         "players[].debug"
       ]
