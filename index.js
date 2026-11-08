@@ -70,9 +70,7 @@ class FreeboxPlayerPopPlatform {
           continue;
         }
         const name = conf.name || 'Freebox Player';
-        // Sans réglage explicite, on garde l'interrupteur des versions 0.1/0.2
-        // pour ne pas casser les automatisations existantes.
-        const type = conf.accessoryType === 'television' ? 'television' : 'switch';
+        const type = accessoryTypeOf(conf);
         const switchUuid = this.api.hap.uuid.generate(`${PLUGIN_NAME}:${conf.host}`);
         if (type === 'switch') wanted.add(switchUuid);
 
@@ -412,6 +410,12 @@ const keysKnown = (link) => !/^keys?:/.test(link) || link.replace(/^keys?:/, '')
  * Chaque source : { name, link, package? } — `link` ouvre la source,
  * `package` (un ou plusieurs, séparés par des virgules) la reconnaît.
  */
+// Même défaut que le formulaire de réglages (config.schema.json) : téléviseur,
+// sauf « switch » demandé explicitement.
+function accessoryTypeOf(conf) {
+  return conf && conf.accessoryType === 'switch' ? 'switch' : 'television';
+}
+
 function sanitizeApps(apps, log, name) {
   if (!Array.isArray(apps) || !apps.length) return DEFAULT_APPS;
   const ok = [];
@@ -449,3 +453,4 @@ function displayOrderTlv(ids) {
 module.exports.sanitizeApps = sanitizeApps;
 module.exports.displayOrderTlv = displayOrderTlv;
 module.exports.DEFAULT_APPS = DEFAULT_APPS;
+module.exports.accessoryTypeOf = accessoryTypeOf;

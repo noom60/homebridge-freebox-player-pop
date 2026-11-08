@@ -83,3 +83,13 @@ test('config.schema.json : conforme aux contrôles Homebridge (required en table
   walk(schema);
   assert.deepStrictEqual(schema.properties.players.items.required, ['name', 'host']);
 });
+
+test('type d\'accessoire : même défaut (téléviseur) dans le code que dans le formulaire', () => {
+  const { accessoryTypeOf } = require('../index');
+  const schema = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config.schema.json'), 'utf8')).schema;
+  const formDefault = schema.properties.players.items.properties.accessoryType.default;
+  assert.strictEqual(accessoryTypeOf({ host: '192.168.1.37' }), formDefault);
+  assert.strictEqual(accessoryTypeOf({ accessoryType: 'television' }), 'television');
+  assert.strictEqual(accessoryTypeOf({ accessoryType: 'switch' }), 'switch');
+  assert.strictEqual(accessoryTypeOf({ accessoryType: 'n importe quoi' }), 'television');
+});

@@ -2,6 +2,7 @@
 
 [![npm](https://img.shields.io/npm/v/homebridge-freebox-player-pop)](https://www.npmjs.com/package/homebridge-freebox-player-pop)
 [![Tests](https://github.com/noom60/homebridge-freebox-player-pop/actions/workflows/publish.yml/badge.svg)](https://github.com/noom60/homebridge-freebox-player-pop/actions/workflows/publish.yml)
+[![verified-by-homebridge](https://img.shields.io/badge/homebridge-verified-blueviolet?color=%23491F59&style=flat)](https://github.com/homebridge/homebridge/wiki/Verified-Plugins)
 
 Plugin [Homebridge](https://homebridge.io) qui fait d'un **Freebox Player POP**
 un **téléviseur HomeKit** :
@@ -66,7 +67,8 @@ Compatible Homebridge 1.8+ et 2.x, Node.js 22, 24 et 26.
 > Homebridge : le journal affiche alors « Le Player refuse le certificat ».
 > Refaire l'appairage dans les réglages, puis redémarrer le pont.
 
-Sans `accessoryType`, un Player configuré avant la 0.3.0 reste un interrupteur.
+Sans `accessoryType`, le Player est un téléviseur (depuis la 0.3.4, comme dans le
+formulaire de réglages). Pour garder l'interrupteur, indique `"accessoryType": "switch"`.
 Changer de type crée un nouvel accessoire dans l'app Maison : les automatisations
 qui utilisaient l'ancien sont à refaire.
 

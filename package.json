@@ -1,7 +1,7 @@
 {
   "name": "homebridge-freebox-player-pop",
   "displayName": "Freebox Player POP",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Freebox Player POP as a HomeKit TV: power, Control Center remote, volume, app inputs — Le Freebox Player POP en téléviseur HomeKit.",
   "main": "index.js",
   "bin": {
